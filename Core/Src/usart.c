@@ -133,5 +133,32 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 
 /* USER CODE BEGIN 1 */
 
+/**
+ * @brief overwrite the _write() to USART2 so prinf() can be used to print text to serial port
+ * @param[in] fd - filedescriptor
+ * @param[in] *ptr - pointer to character string
+ * @param[int] len - number of characters to write
+ * @return - Returns the length of the characters transmitted. -1 if there was an error
+ * @site: https://youtu.be/Eh7Szh-K-u8?si=Ikj3pmx2XVe4DEal
+ *
+ */
+int _write(int fd, char *ptr, int len)
+{
+	HAL_StatusTypeDef hstatus;
+	int result = -1;
+
+	// verify that this action is an output
+	if(fd == STDOUT_FILENO || fd == STDERR_FILENO)
+	{
+		// transmit and store the HAL status
+		hstatus = HAL_UART_Transmit(&huart2, (uint8_t*)ptr, len, HAL_MAX_DELAY);
+
+		if (hstatus == HAL_OK) // no errors
+			result = len;
+	}
+
+	return result;
+}
+
 /* USER CODE END 1 */
 
