@@ -198,13 +198,13 @@ void vTaskMain(void * pvParameters)
 
 		if(led_enabled)
 		{
-			//printstring("LED: Enabled");
+			printf("LED: Enabled\r\n");
 			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
 			led_enabled = false;
 		}
 		else
 		{
-			//printstring("LED: Disabled");
+			prinf("LED: Disabled\r\n");
 			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 			led_enabled = true;
 		}
