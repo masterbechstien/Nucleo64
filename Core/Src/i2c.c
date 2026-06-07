@@ -152,25 +152,44 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* i2cHandle)
  */
 void i2c_scan(void)
 {
-	uint8_t try_attempts = 3;
-	uint8_t timeout = 5;
 
 	for(uint8_t i = 0; i < 128; i++)
 	{
-		if(HAL_I2C_IsDeviceReady(&hi2c1, (uint16_t)(i << 1), (uint32_t)try_attempts, (uint32_t)timeout ) == HAL_OK)
+		// Check if device is available
+		if(I2C_IsDeviceReady(i))
 		{
-			// We got an ACK
-			printf("0x%2X ", i);
+			// Device is available - We got an ACK
+			printf("0x%2X\r\n", i);
 		}
 		else
 		{
-			printf("-- ");
+			// Device is not available
+			//printf("---- ");
 		}
 
 		// Format the line to 16 characters per line
-		if(i > 0 && (i+1) % 16 == 0) printf("\r\n");
+		//if(i > 0 && (i+1) % 16 == 0) printf("\r\n");
 
 	}
+}
+
+/**
+ * @brief Wrapper function for HAL_I2C_IsDeviceReady
+ * @param[in] address - The address of the I2C peripheral to check
+ * @return[out] True: The device is ready, False: Device is not ready
+ */
+bool I2C_IsDeviceReady(uint8_t address)
+{
+	bool ready = false;
+	uint8_t try_attempts = 3;
+	uint8_t timeout = 5;
+
+	if(HAL_I2C_IsDeviceReady(&hi2c1, (uint16_t)(address << 1), (uint32_t)try_attempts, (uint32_t)timeout ) == HAL_OK)
+	{
+		ready = true;
+	}
+
+	return ready;
 }
 
 /* USER CODE END 1 */

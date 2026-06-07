@@ -27,6 +27,7 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <stdbool.h>
 
 /* USER CODE BEGIN Includes */
 
@@ -43,6 +44,8 @@ void MX_I2C1_Init(void);
 /* USER CODE BEGIN Prototypes */
 
 void i2c_scan(void);
+
+bool I2C_IsDeviceReady(uint8_t address);
 
 /* USER CODE END Prototypes */
 
