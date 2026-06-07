@@ -191,6 +191,8 @@ void vTaskMain(void * pvParameters)
 {
 	bool led_enabled = false;
 
+	i2c_scan();
+
 	// forever loop
 	for ( ;; )
 	{
@@ -198,13 +200,13 @@ void vTaskMain(void * pvParameters)
 
 		if(led_enabled)
 		{
-			printf("LED: Enabled\r\n");
+			//printf("LED: Enabled\r\n");
 			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
 			led_enabled = false;
 		}
 		else
 		{
-			prinf("LED: Disabled\r\n");
+			//prinf("LED: Disabled\r\n");
 			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 			led_enabled = true;
 		}

@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "i2c.h"
+#include "usart.h"
 
 /* USER CODE BEGIN 0 */
 
@@ -141,6 +142,36 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* i2cHandle)
 }
 
 /* USER CODE BEGIN 1 */
+
+/**
+ * @brief Scan all 128 addresses to check which are populated
+ * @param None
+ * @site: https://www.youtube.com/watch?v=n7vlq_67FI0
+ * @site: https://stm32world.com/wiki/Category:STM32_Development
+ * @site: https://stm32world.com/wiki/STM32_Scan_I%C2%B2C_bus
+ */
+void i2c_scan(void)
+{
+	uint8_t try_attempts = 3;
+	uint8_t timeout = 5;
+
+	for(uint8_t i = 0; i < 128; i++)
+	{
+		if(HAL_I2C_IsDeviceReady(&hi2c1, (uint16_t)(i << 1), (uint32_t)try_attempts, (uint32_t)timeout ) == HAL_OK)
+		{
+			// We got an ACK
+			printf("0x%2X ", i);
+		}
+		else
+		{
+			printf("-- ");
+		}
+
+		// Format the line to 16 characters per line
+		if(i > 0 && (i+1) % 16 == 0) printf("\r\n");
+
+	}
+}
 
 /* USER CODE END 1 */
 
