@@ -1,5 +1,9 @@
 /*
  * bme680.c
+ *  Created on: Jun 6, 2026
+ *      Author: Roberto Bech
+ *
+ * Sensor Description: Low power gas, pressure, temperature & humidity sensor
  *
  * site: https://github.com/watterott/BME680-Breakout
  * The communication protocol will be set to I2C.
@@ -14,22 +18,40 @@
  *
  * Hardware Setup
  * BME680 breakout
- * 		Pinout
- * 			GND
- * 			NC
- * 			VCC
- * 			SCL/SCK
- * 			SDA/SDI
- * 			SDO
- * 			CS
+ * 		Pinout        |  Description         |   I2C Connection
+ * 		-----------   |  ------------------  |   --------------
+ * 			GND       |   Ground             |    GND
+ * 			NC        |   Not Connected      |    NC
+ * 			VCC       |   Power              |    VCC
+ * 			SCL/SCK   |   Serial Clock Input |    SCL
+ * 			SDA/SDI   |   Serial Data Input  |    SDA
+ * 			SDO       |   Serial Data Output |    GND for default address (0x76)
+ * 			CS        |   chip select        |    VCC (enable I2C)
  *
  *
- *  Created on: Jun 6, 2026
- *      Author: Roberto Bech
+ *
  */
-
-#define BME680_ADDR_1 0x76  // SDO is set to GND
-#define BME680_ADDR_2 0x77  // SDO is tet to VCC
 
 
 #include "bme680.h"
+#include "usart.h"
+#include <stdbool.h>
+
+/**
+ * @brief Initialize BME680
+ */
+void bme680_init(void)
+{
+	// Check I2C if the device is available
+
+	if(I2C_IsDeviceReady(BME680_ADDRESS))
+	{
+		printf("BME680 is ready\r\n");
+	}
+	else
+	{
+		printf("BME680 is not ready");
+	}
+
+}
+
