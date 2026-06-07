@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "common.h"
 #include "cmsis_os.h"
 #include "dma.h"
 #include "i2c.h"
@@ -55,6 +56,8 @@ void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 
+void vTaskMain(void * pvParameters);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -70,6 +73,12 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+
+	BaseType_t xReturned;
+	TaskHandle_t MainTaskHandle = NULL; // used to pass out the created tasks handle
+
+	// create the task for MainTask
+	xReturned = xTaskCreate(vTaskMain, "MainTask", MAIN_TASK_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &MainTaskHandle);
 
   /* USER CODE END 1 */
 
@@ -115,6 +124,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
   }
+
+  // code should never reach this point
+
+  if (xReturned == pdPASS)
+  {
+	  vTaskDelete(MainTaskHandle);
+  }
+
   /* USER CODE END 3 */
 }
 
@@ -165,6 +182,36 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+/**
+ * @brief Main task look - example taken from FreeRTOS example
+ * @site: https://www.freertos.org/Documentation/02-Kernel/04-API-references/01-Task-creation/01-xTaskCreate
+ */
+void vTaskMain(void * pvParameters)
+{
+	bool led_enabled = false;
+
+	// forever loop
+	for ( ;; )
+	{
+		// To test the loop turn ON/OFF the LED on Nucleo64
+
+		if(led_enabled)
+		{
+			//printstring("LED: Enabled");
+			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+			led_enabled = false;
+		}
+		else
+		{
+			//printstring("LED: Disabled");
+			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+			led_enabled = true;
+		}
+		/* Task code goes here */
+		vTaskDelay(DELAY_ONE_SECOND);
+	}
+}
 
 /* USER CODE END 4 */
 
