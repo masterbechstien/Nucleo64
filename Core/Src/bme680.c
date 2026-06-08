@@ -5,6 +5,7 @@
  *
  * Sensor Description: Low power gas, pressure, temperature & humidity sensor
  *
+ * site: https://esp-idf-lib.readthedocs.io/en/latest/groups/bme680.html
  * site: https://github.com/watterott/BME680-Breakout
  * The communication protocol will be set to I2C.
  * For I2C to be utilized, the datasheet states that "If CSB is connected to VDDIO, the I2C interface is active".
