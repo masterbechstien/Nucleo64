@@ -21,15 +21,16 @@
 #ifndef __I2C_H__
 #define __I2C_H__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "main.h"
+#include "common.h"
 #include <stdbool.h>
 
 /* USER CODE BEGIN Includes */
+
+#define I2C_MAX_TIMEOUT 5
+#define RX_MAX_BUFFER_SIZE 20
+#define TX_MAX_BUFFER_SIZE 20
 
 /* USER CODE END Includes */
 
@@ -49,9 +50,6 @@ bool I2C_IsDeviceReady(uint8_t address);
 
 /* USER CODE END Prototypes */
 
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* __I2C_H__ */
 

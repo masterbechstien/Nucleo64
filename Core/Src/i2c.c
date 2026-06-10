@@ -23,10 +23,16 @@
 
 /* USER CODE BEGIN 0 */
 
+uint8_t i2c_tx_buffer[TX_MAX_BUFFER_SIZE] = {0};
+uint8_t i2c_rx_buffer[RX_MAX_BUFFER_SIZE] = {0};
+
 /* USER CODE END 0 */
 
 I2C_HandleTypeDef hi2c1;
 DMA_HandleTypeDef hdma_i2c1_rx;
+
+// TODO: Implement DMA RX - possibly use boolean "i2c_rx_received"
+bool rx_received = false; // flag that gets set when I2C RX is trigged
 
 /* I2C1 init function */
 void MX_I2C1_Init(void)
@@ -144,6 +150,20 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* i2cHandle)
 /* USER CODE BEGIN 1 */
 
 /**
+ * @brief Override the Rx Complete Callback for non-blocking DMA
+ * @param[in] hi2cHandle - handle for I2C instance
+ * TODO: Implement DMA RX - possibly use boolean "i2c_rx_received"
+ */
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2cHandle)
+{
+	if(hi2cHandle->Instance == I2C1)
+	{
+		// Data is now in the buffer
+
+	}
+}
+
+/**
  * @brief Scan all 128 addresses to check which are populated
  * @param None
  * @site: https://www.youtube.com/watch?v=n7vlq_67FI0
@@ -190,6 +210,45 @@ bool I2C_IsDeviceReady(uint8_t address)
 	}
 
 	return ready;
+}
+
+
+/**
+ * @brief HAL I2C1 Transmit wrapper
+ * @param[in] address - Target address
+ * @param[in] *data   - data to transmit (e.g. data[0] = 0x08)
+ * @param[in] size    - size of the data to transmit (e.g. 1)
+ */
+void I2C_Transmit(uint8_t address, uint16_t size)
+{
+	//HAL_StatusTypeDef HAL_I2C_Master_Transmit(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+	//uint8_t buff[20] = {0};
+
+	if(HAL_I2C_Master_Transmit(&hi2c1, (uint16_t)(address<<1), i2c_tx_buffer, size, I2C_MAX_TIMEOUT) != HAL_OK)
+	{
+		Error_Handler();
+	}
+}
+
+uint8_t* I2C_Receive(uint8_t address, uint8_t size)
+{
+	//HAL_StatusTypeDef HAL_I2C_Master_Receive_DMA(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size)
+	//i2c_rx_buffer
+
+	/*
+	if(HAL_I2C_Master_Receive_DMA(&hi2c1, (uint16_t)(address<<1), i2c_rx_buffer, size) != HAL_OK)
+	{
+		Error_Handler();
+	}
+	*/
+
+	//HAL_StatusTypeDef HAL_I2C_Master_Receive(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout);
+	if(HAL_I2C_Master_Receive(&hi2c1, (uint16_t)(address<<1), i2c_rx_buffer, size, I2C_MAX_TIMEOUT) != HAL_OK)
+	{
+		Error_Handler();
+	}
+
+	return i2c_rx_buffer;
 }
 
 /* USER CODE END 1 */

@@ -56,3 +56,13 @@ void bme680_init(void)
 
 }
 
+void bme680_sleep_mode(void)
+{
+	// mode<1:0> == 00
+}
+
+void bme680_forced_mode(void)
+{
+	// mode<1:0> == 01
+}
+

@@ -11,6 +11,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "stdbool.h"
+#include "stm32f4xx_hal.h"
 
 #define BYTES_TO_WORD_SIZE(x) (x/4)  // For 32-bit architecture convert bytes to words: 4bytes = 1word
 
