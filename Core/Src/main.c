@@ -192,9 +192,11 @@ void vTaskMain(void * pvParameters)
 {
 	bool led_enabled = false;
 
-	i2c_scan();
+	//i2c_scan();
 
 	bme680_init();
+
+	printf("BME680 ID: %u\n", bme680_get_id());
 
 	// forever loop
 	for ( ;; )

@@ -14,17 +14,54 @@
 #include "i2c.h"
 
 #define MAX_NUMBER_REGISTERS 32
+#define DEFAULT_TXRX_VALUE 0
 
 #define BME680_ADDR_1 0x76  // SDO is set to GND
 #define BME680_ADDR_2 0x77  // SDO is tet to VCC
 #define BME680_ADDRESS BME680_ADDR_1 // SDO is connected to GND
+
+#define OVERSAMPLING_MASK 7 // First 3 bits of Temp osrs_t<2:0>, RH osrs_r<2:0>, and Pressure osrs_p<2:0>
+
+#define OVERSAMPLING_1X  1
+#define OVERSAMPLING_2X  2
+#define OVERSAMPLING_4X  4
+#define OVERSAMPLING_8X  8
+#define OVERSAMPLING_16X 16
 
 #define BME680_REG_STATUS       0x73  // Bit<4> spi_mem_page
 #define BME680_REG_RESET		0xE0  // Bit<7:0> reset
 #define BME680_REG_ID			0xD0  // Bit<7:0> chip_id
 #define BME680_REG_CONFIG		0x75  // Bit<4:2> filter, Bit<0> spi_3w_en
 #define BME680_REG_CTRL_MEAS	0x74  // Bit<7:5> osrs_t, Bit<4:2> osrs_p, Bit<1:0> mode
+/**
+ * osrs_t<7:5>     | Temperature oversampling
+ *     000         | Skipped (output set to 0x8000)
+ *     001         |  oversampling x1
+ *     010         |  oversampling x2
+ *     011         |  oversampling x4
+ *     100         |  oversampling x8
+ *     101, others |  oversampling x16
+ */
+
+/**
+ * osrs_p<4:2>     | Temperature oversampling
+ *     000         | Skipped (output set to 0x8000)
+ *     001         |  oversampling x1
+ *     010         |  oversampling x2
+ *     011         |  oversampling x4
+ *     100         |  oversampling x8
+ *     101, others |  oversampling x16
+ */
 #define BME680_REG_CTRL_HUM		0x72  // Bit<6> spi_3w_int_en, Bit<2:0> osrs_h
+/**
+ * osrs_h<2:0>     | Humidity oversampling
+ *     000         | Skipped (output set to 0x8000)
+ *     001         |  oversampling x1
+ *     010         |  oversampling x2
+ *     011         |  oversampling x4
+ *     100         |  oversampling x8
+ *     101, others |  oversampling x16
+ */
 #define BME680_REG_CTRL_GAS_1	0x71  // Bit<4> run_gas, Bit<3:0> nb_conv
 #define BME680_REG_CTRL_GAS_0	0x70  // Bit<3> heat_off
 #define BME680_REG_GAS_WAIT_X	0x64  // 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D
@@ -48,6 +85,10 @@
  *  Larger values also reduces how often measurements can be requested
  *  1, 2, 4, 8, or 16
  */
+
+#define I2C_WRITE 0
+#define I2C_READ  1
+
 #define TEMP_OVERSAMPLING 2
 #define RH_OVERSAMPLING 2
 #define PRES_OVERSAMPLING 2
@@ -55,18 +96,14 @@
 void bme680_init(void);
 void bme680_forced_mode(void);
 void bme680_sleep_mode(void);
+uint8_t bme680_get_id(void);
 
 void bme680_set_humidity_oversampling(void);
 void bme680_set_temperature_oversampling(void);
 void bme680_set_pressure_oversampling(void);
 
-// List of gas ranges and corresponding constants used for the resistance calculation
-// Constants to be integrated into the driver
-static float const_array1[16] = {1, 1, 1, 1, 1, 0.99, 1, 0.992, 1, 1, 0.998, 0.995, 1, 0.99, 1, 1};
-static float const_array2[16] = {8000000,4000000,2000000,1000000,499500.4995,248262.1648,125000,63004.03226,31281.28128,15625,7812.5,3906.25,1953.125,976.5625,488.28125,244.140625};
-static uint32_t const_array1_int[16] = {2147483647,2147483647,2147483647,2147483647,2147483647,2126008810,2147483647,2130303777,2147483647,2147483647,2143188679,2136746228,2147483647,2126008810,2147483647,2147483647};
-static uint32_t const_array2_int[16] = {4096000000,2048000000,1024000000,512000000,255744255,127110228,64000000,32258064,16016016,8000000,4000000,2000000,1000000,500000,250000,125000};
-
+void bme680_config_sensors(void);
+void bme680_i2c_command(uint8_t *tx_buffer, uint8_t size, bool perform_receive);
 
 
 #endif /* INC_BME680_H_ */

@@ -47,6 +47,8 @@ void MX_I2C1_Init(void);
 void i2c_scan(void);
 
 bool I2C_IsDeviceReady(uint8_t address);
+void I2C_MasterTransmit(uint8_t address, uint8_t* buffer, uint16_t size);
+void I2C_MasterReceive(uint8_t address, uint8_t* buffer, uint8_t size);
 
 /* USER CODE END Prototypes */
 
