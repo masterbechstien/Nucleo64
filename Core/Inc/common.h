@@ -16,6 +16,7 @@
 #define BYTES_TO_WORD_SIZE(x) (x/4)  // For 32-bit architecture convert bytes to words: 4bytes = 1word
 
 #define MAIN_TASK_STACK_SIZE   BYTES_TO_WORD_SIZE(1024)           // For 32bit architecture: 4bytes=1Word, then 256 words = 256words*4bytes/1word = 1024 bytes
+#define BME680_TASK_STACK_SIZE   BYTES_TO_WORD_SIZE(1024)           // For 32bit architecture: 4bytes=1Word, then 256 words = 256words*4bytes/1word = 1024 bytes
 #define LED_TASK_STACK_SIZE    BYTES_TO_WORD_SIZE(512)            // TODO: Review stack size
 
 #define DELAY_ONE_SECOND pdMS_TO_TICKS(1000)

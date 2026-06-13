@@ -25,6 +25,7 @@
 #include "usart.h"
 #include "gpio.h"
 #include "bme680.h"
+#include "queue.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -38,6 +39,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+// Create a queue to handle measurement - prevent read/write race conditions
+QueueHandle_t SensorDataQueue = NULL;
 
 /* USER CODE END PD */
 
@@ -58,6 +62,7 @@ void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 
 void vTaskMain(void * pvParameters);
+void vTaskBME680(void *pvParameters);
 void vTaskLEDAlive(void * pvParameters);
 
 /* USER CODE END PFP */
@@ -76,10 +81,12 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 	TaskHandle_t MainTaskHandle = NULL; // used to pass out the created tasks handle
+	TaskHandle_t BME680TaskHandle = NULL;
 	TaskHandle_t LEDAliveTaskHandle = NULL;
 
 	// create the task for MainTask
 	BaseType_t mainTaskResult = xTaskCreate(vTaskMain, "MainTask", MAIN_TASK_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &MainTaskHandle);
+	BaseType_t BME680TaskResult = xTaskCreate(vTaskBME680, "BME680Task", BME680_TASK_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &BME680TaskHandle);
 	BaseType_t LEDAliveTaskResult = xTaskCreate(vTaskLEDAlive, "LEDAliveTask", LED_TASK_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &LEDAliveTaskHandle);
 
   /* USER CODE END 1 */
@@ -113,6 +120,17 @@ int main(void)
   osKernelInitialize();  /* Call init function for freertos objects (in cmsis_os2.c) */
   MX_FREERTOS_Init();
 
+	// Create a queue to handle measurement - prevent read/write race conditions
+	SensorDataQueue = xQueueCreate(5, sizeof(struct bme68x_data));
+
+	// null guard
+	if(SensorDataQueue == NULL)
+	{
+		printf("SensorDataQueue: Error - out of memory\r\n");
+		// handle allocation failure (out of memory)
+		Error_Handler();
+	}
+
   /* Start scheduler */
   osKernelStart();
 
@@ -129,9 +147,14 @@ int main(void)
 
   // code should never reach this point
 
-  if (mainTaskResult == pdPASS)
+  if ( mainTaskResult == pdPASS )
   {
 	  vTaskDelete(MainTaskHandle);
+  }
+
+  if ( BME680TaskResult == pdPASS )
+  {
+	  vTaskDelete(BME680TaskHandle);
   }
 
   if ( LEDAliveTaskResult == pdPASS )
@@ -196,9 +219,10 @@ void SystemClock_Config(void)
  */
 void vTaskMain(void * pvParameters)
 {
+	struct bme68x_data received_measurements;
+
 	//i2c_scan();
 
-	bme680_init();
 
 	//printf("BME680 ID: %u\r\n", bme680_get_id());
 
@@ -207,9 +231,66 @@ void vTaskMain(void * pvParameters)
 	// forever loop
 	for ( ;; )
 	{
-		// print the sensor readings every 5 seconds
+		//printf("MainTask\r\n");
 
-		bme680_get_measurement();
+		// print the sensor readings every 5 seconds
+		if (xQueueReceive(SensorDataQueue, &received_measurements, portMAX_DELAY) == pdPASS)
+		{
+			// data is safely copied - can now process the data
+			printf("Temp: %.2f, RH: %.2f, Pressure (Pa): %.2f, GasR: %.2f, Status: 0x%u\r\n",
+					received_measurements.temperature,
+					received_measurements.humidity,
+				   (received_measurements.pressure - 101325), // remove atmospheric pressure in Pascals
+				   received_measurements.gas_resistance,
+				   received_measurements.status);
+		}
+
+		vTaskDelay(5*DELAY_ONE_SECOND);
+	}
+}
+
+void vTaskBME680(void *pvParameters)
+{
+	struct bme68x_data current_measurements;
+
+	// initialize BME680
+	bme680_init();
+
+	// null guard
+	if(SensorDataQueue == NULL)
+	{
+		// handle allocation failure (out of memory)
+		Error_Handler();
+	}
+
+	//printf("BME680 ID: %u\r\n", bme680_get_id());
+
+	//printf("Sample, TimeStamp(ms), Temperature(deg C), Pressure(Pa), Humidity(%%), Gas resistance(ohm), Status\r\n");
+
+	// forever loop
+	for ( ;; )
+	{
+		//printf("BME680 task schedule\r\n");
+		// get sensor readings every 5 seconds
+
+		// poll BME680 for sensor measurements
+		bme680_poll_measurement();
+
+		// get a copy of the current measurements
+		bme680_get_measurements(&current_measurements);
+
+		// Post data to the back of the queue - block for up to 10 ticks if full
+		if( xQueueSend(SensorDataQueue, (void *)&current_measurements, (TickType_t)10) == pdPASS)
+		{
+			// data sent successfully
+			//printf("xQueueSend: success\r\n");
+		}
+		else
+		{
+			// error handling: queue stayed full for 10 ticks
+			printf("xQueueSend Error: queue stayed full for 10 ticks\r\n");
+		}
+
 
 		vTaskDelay(5*DELAY_ONE_SECOND);
 	}

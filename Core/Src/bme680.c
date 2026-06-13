@@ -81,7 +81,7 @@ void bme680_init(void)
 
 }
 
-void bme680_get_measurement(void)
+void bme680_poll_measurement(void)
 {
 	uint32_t del_period;
 	uint8_t n_fields;
@@ -97,6 +97,7 @@ void bme680_get_measurement(void)
 	rslt = bme68x_get_data(BME68X_FORCED_MODE, &data, &n_fields, &bme);
 	bme68x_check_rslt("bme68x_get_data", rslt);
 
+	/*
     if (n_fields)
     {
 #ifdef BME68X_USE_FPU
@@ -115,7 +116,26 @@ void bme680_get_measurement(void)
                data.status);
 #endif
     }
+    */
 }
+
+void bme680_get_measurements(struct bme68x_data *pData)
+{
+	pData->pressure = data.pressure;
+	pData->humidity = data.humidity;
+	pData->temperature = data.temperature;
+	pData->gas_resistance = data.gas_resistance;
+
+	pData->gas_index = data.gas_index;
+	pData->gas_wait = data.gas_wait;
+	pData->idac = data.idac;
+	pData->meas_index = data.meas_index;
+	pData->status = data.status;
+	pData->res_heat = data.res_heat;
+}
+
+
+
 
 /**
  * @brief Get the BME680 ID

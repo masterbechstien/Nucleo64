@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "i2c.h"
+#include "bme68x_defs.h"
 #include "bme68x.h"
 
 #define BME680_ADDRESS BME68X_I2C_ADDR_LOW // BME68X_I2C_ADDR_LOW: SDO is connected to GND, BME68X_I2C_ADDR_HIGH: SDO connected to VCC
@@ -84,10 +85,17 @@ void bme68x_delay_us(uint32_t period, void *intf_ptr);
 void bme68x_check_rslt(const char api_name[], int8_t rslt);
 
 /**
- * @brief Get the sensor measurements and print USART
+ * @brief Poll for sensor measurements and print USART
  * @param N/A
  */
-void bme680_get_measurement(void);
+void bme680_poll_measurement(void);
+
+/**
+ * @brief Copy the current sensor measurements
+ * @param N/A
+ * @return[out] The BME680 data struct that holds teh sensor measurements
+ */
+void bme680_get_measurements(struct bme68x_data *pData);
 
 /**
  * @brief Poll BME680 for the Chip ID - this is for debugging purposes
