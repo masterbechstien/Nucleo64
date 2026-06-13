@@ -58,6 +58,7 @@ void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 
 void vTaskMain(void * pvParameters);
+void vTaskLEDAlive(void * pvParameters);
 
 /* USER CODE END PFP */
 
@@ -74,12 +75,12 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
-	BaseType_t xReturned;
 	TaskHandle_t MainTaskHandle = NULL; // used to pass out the created tasks handle
+	TaskHandle_t LEDAliveTaskHandle = NULL;
 
 	// create the task for MainTask
-	xReturned = xTaskCreate(vTaskMain, "MainTask", MAIN_TASK_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &MainTaskHandle);
+	BaseType_t mainTaskResult = xTaskCreate(vTaskMain, "MainTask", MAIN_TASK_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &MainTaskHandle);
+	BaseType_t LEDAliveTaskResult = xTaskCreate(vTaskLEDAlive, "LEDAliveTask", LED_TASK_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &LEDAliveTaskHandle);
 
   /* USER CODE END 1 */
 
@@ -128,9 +129,14 @@ int main(void)
 
   // code should never reach this point
 
-  if (xReturned == pdPASS)
+  if (mainTaskResult == pdPASS)
   {
 	  vTaskDelete(MainTaskHandle);
+  }
+
+  if ( LEDAliveTaskResult == pdPASS )
+  {
+	  vTaskDelete(LEDAliveTaskHandle);
   }
 
   /* USER CODE END 3 */
@@ -190,13 +196,29 @@ void SystemClock_Config(void)
  */
 void vTaskMain(void * pvParameters)
 {
-	bool led_enabled = false;
-
 	//i2c_scan();
 
 	bme680_init();
 
-	printf("BME680 ID: %u\n", bme680_get_id());
+	//printf("BME680 ID: %u\r\n", bme680_get_id());
+
+	//printf("Sample, TimeStamp(ms), Temperature(deg C), Pressure(Pa), Humidity(%%), Gas resistance(ohm), Status\r\n");
+
+	// forever loop
+	for ( ;; )
+	{
+		// print the sensor readings every 5 seconds
+
+		bme680_get_measurement();
+
+		vTaskDelay(5*DELAY_ONE_SECOND);
+	}
+}
+
+void vTaskLEDAlive(void * pvParameters)
+{
+	bool led_enabled = false;
+
 
 	// forever loop
 	for ( ;; )

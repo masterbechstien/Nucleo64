@@ -47,8 +47,12 @@ void MX_I2C1_Init(void);
 void i2c_scan(void);
 
 bool I2C_IsDeviceReady(uint8_t address);
-void I2C_MasterTransmit(uint8_t address, uint8_t* buffer, uint16_t size);
+void I2C_MasterTransmit(uint8_t address, uint8_t reg_addr, uint8_t* buffer, uint16_t size);
 void I2C_MasterReceive(uint8_t address, uint8_t* buffer, uint8_t size);
+uint8_t *I2C_CreateBuffer(uint8_t address, uint8_t* buffer, uint32_t size);
+
+bool I2C_Read(uint8_t address, uint8_t reg_addr, uint8_t* buffer, uint16_t size);
+bool I2C_Write(uint8_t address, uint8_t reg_addr, uint8_t* buffer, uint16_t size);
 
 /* USER CODE END Prototypes */
 

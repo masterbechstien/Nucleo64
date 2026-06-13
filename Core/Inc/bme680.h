@@ -12,98 +12,89 @@
 
 #include "common.h"
 #include "i2c.h"
+#include "bme68x.h"
 
-#define MAX_NUMBER_REGISTERS 32
-#define DEFAULT_TXRX_VALUE 0
+#define BME680_ADDRESS BME68X_I2C_ADDR_LOW // BME68X_I2C_ADDR_LOW: SDO is connected to GND, BME68X_I2C_ADDR_HIGH: SDO connected to VCC
 
-#define BME680_ADDR_1 0x76  // SDO is set to GND
-#define BME680_ADDR_2 0x77  // SDO is tet to VCC
-#define BME680_ADDRESS BME680_ADDR_1 // SDO is connected to GND
-
-#define OVERSAMPLING_MASK 7 // First 3 bits of Temp osrs_t<2:0>, RH osrs_r<2:0>, and Pressure osrs_p<2:0>
-
-#define OVERSAMPLING_1X  1
-#define OVERSAMPLING_2X  2
-#define OVERSAMPLING_4X  4
-#define OVERSAMPLING_8X  8
-#define OVERSAMPLING_16X 16
-
-#define BME680_REG_STATUS       0x73  // Bit<4> spi_mem_page
-#define BME680_REG_RESET		0xE0  // Bit<7:0> reset
-#define BME680_REG_ID			0xD0  // Bit<7:0> chip_id
-#define BME680_REG_CONFIG		0x75  // Bit<4:2> filter, Bit<0> spi_3w_en
-#define BME680_REG_CTRL_MEAS	0x74  // Bit<7:5> osrs_t, Bit<4:2> osrs_p, Bit<1:0> mode
-/**
- * osrs_t<7:5>     | Temperature oversampling
- *     000         | Skipped (output set to 0x8000)
- *     001         |  oversampling x1
- *     010         |  oversampling x2
- *     011         |  oversampling x4
- *     100         |  oversampling x8
- *     101, others |  oversampling x16
- */
-
-/**
- * osrs_p<4:2>     | Temperature oversampling
- *     000         | Skipped (output set to 0x8000)
- *     001         |  oversampling x1
- *     010         |  oversampling x2
- *     011         |  oversampling x4
- *     100         |  oversampling x8
- *     101, others |  oversampling x16
- */
-#define BME680_REG_CTRL_HUM		0x72  // Bit<6> spi_3w_int_en, Bit<2:0> osrs_h
-/**
- * osrs_h<2:0>     | Humidity oversampling
- *     000         | Skipped (output set to 0x8000)
- *     001         |  oversampling x1
- *     010         |  oversampling x2
- *     011         |  oversampling x4
- *     100         |  oversampling x8
- *     101, others |  oversampling x16
- */
-#define BME680_REG_CTRL_GAS_1	0x71  // Bit<4> run_gas, Bit<3:0> nb_conv
-#define BME680_REG_CTRL_GAS_0	0x70  // Bit<3> heat_off
-#define BME680_REG_GAS_WAIT_X	0x64  // 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D
-#define BME680_REG_RES_HEAT_X   0x5A  // 0x5B, 0x5C, 0x5D, 0x5E, 0x5F, 0x60, 0x61, 0x62, 0x63
-#define BME680_REG_IDAC_HEAT_X	0x50  // 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59
-#define BME680_REG_GAS_R_LSB	0x2B
-#define BME680_REG_GAS_R_MSB	0x2A
-#define BME680_REG_HUM_LSB		0x26
-#define BME680_REG_HUM_MSB		0x25
-#define BME680_REG_TEMP_XLSB	0x24
-#define BME680_REG_TEMP_LSB		0x23
-#define BME680_REG_TEMP_MSB		0x22
-#define BME680_REG_PRESS_XLSB	0x21
-#define BME680_REG_PRESS_LSB	0x20
-#define BME680_REG_PRESS_MSB	0x1F
-#define BME680_REG_EAS_STATUS_0 0x1D
-
-/**
- *  Oversampling - Number of samples to take
- *  Increases resolution with larger values - this reduces noise
- *  Larger values also reduces how often measurements can be requested
- *  1, 2, 4, 8, or 16
- */
-
-#define I2C_WRITE 0
-#define I2C_READ  1
-
-#define TEMP_OVERSAMPLING 2
-#define RH_OVERSAMPLING 2
-#define PRES_OVERSAMPLING 2
 
 void bme680_init(void);
-void bme680_forced_mode(void);
-void bme680_sleep_mode(void);
+
+/*!
+ *  @brief Function to select the interface between SPI and I2C.
+ *
+ *  @param[in] bme      : Structure instance of bme68x_dev
+ *  @param[in] intf     : Interface selection parameter
+ *
+ *  @return Status of execution
+ *  @retval 0 -> Success
+ *  @retval < 0 -> Failure Info
+ */
+int8_t bme68x_interface_init(struct bme68x_dev *bme, uint8_t intf);
+
+/*!
+ *  @brief Function for reading the sensor's registers through I2C bus.
+ *
+ *  @param[in] reg_addr     : Register address.
+ *  @param[out] reg_data    : Pointer to the data buffer to store the read data.
+ *  @param[in] len          : No of bytes to read.
+ *  @param[in] intf_ptr     : Interface pointer
+ *
+ *  @return Status of execution
+ *  @retval = BME68X_INTF_RET_SUCCESS -> Success
+ *  @retval != BME68X_INTF_RET_SUCCESS  -> Failure Info
+ *
+ */
+BME68X_INTF_RET_TYPE bme68x_i2c_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr);
+
+/*!
+ *  @brief Function for writing the sensor's registers through I2C bus.
+ *
+ *  @param[in] reg_addr     : Register address.
+ *  @param[in] reg_data     : Pointer to the data buffer whose value is to be written.
+ *  @param[in] len          : No of bytes to write.
+ *  @param[in] intf_ptr     : Interface pointer
+ *
+ *  @return Status of execution
+ *  @retval = BME68X_INTF_RET_SUCCESS -> Success
+ *  @retval != BME68X_INTF_RET_SUCCESS  -> Failure Info
+ *
+ */
+BME68X_INTF_RET_TYPE bme68x_i2c_write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr);
+
+/*!
+ * @brief This function provides the delay for required time (Microsecond) as per the input provided in some of the
+ * APIs.
+ *
+ *  @param[in] period       : The required wait time in microsecond.
+ *  @param[in] intf_ptr     : Interface pointer
+ *
+ *  @return void.
+ *
+ */
+void bme68x_delay_us(uint32_t period, void *intf_ptr);
+
+/*!
+ *  @brief Prints the execution status of the APIs.
+ *
+ *  @param[in] api_name : Name of the API whose execution status has to be printed.
+ *  @param[in] rslt     : Error code returned by the API whose execution status has to be printed.
+ *
+ *  @return void.
+ */
+void bme68x_check_rslt(const char api_name[], int8_t rslt);
+
+/**
+ * @brief Get the sensor measurements and print USART
+ * @param N/A
+ */
+void bme680_get_measurement(void);
+
+/**
+ * @brief Poll BME680 for the Chip ID - this is for debugging purposes
+ * @param N/A
+ * @return[out] 8bit  Chip ID
+ */
 uint8_t bme680_get_id(void);
-
-void bme680_set_humidity_oversampling(void);
-void bme680_set_temperature_oversampling(void);
-void bme680_set_pressure_oversampling(void);
-
-void bme680_config_sensors(void);
-void bme680_i2c_command(uint8_t *tx_buffer, uint8_t size, bool perform_receive);
 
 
 #endif /* INC_BME680_H_ */

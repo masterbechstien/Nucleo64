@@ -20,6 +20,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "i2c.h"
 #include "usart.h"
+#include <stdlib.h>
 
 /* USER CODE BEGIN 0 */
 
@@ -216,20 +217,45 @@ bool I2C_IsDeviceReady(uint8_t address)
 /**
  * @brief HAL I2C1 Transmit wrapper
  * @param[in] address - Target address
+ * @param[in] reg_addr - Address of register
  * @param[in] *data   - data to transmit (e.g. data[0] = 0x08)
  * @param[in] size    - size of the data to transmit (e.g. 1)
  */
-void I2C_MasterTransmit(uint8_t address, uint8_t* buffer, uint16_t size)
+void I2C_MasterTransmit(uint8_t address, uint8_t reg_addr, uint8_t* buffer, uint16_t size)
 {
 	//HAL_StatusTypeDef HAL_I2C_Master_Transmit(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout)
 	//uint8_t buff[20] = {0};
+	/*
+	uint8_t* tx_buff = (uint8_t*)malloc((size+1)*sizeof(uint8_t));
 
-	if(HAL_I2C_Master_Transmit(&hi2c1, (uint16_t)(address<<1), buffer, size, I2C_MAX_TIMEOUT) != HAL_OK)
+	// register address should be sent first
+	tx_buff[0] = reg_addr;
+
+	// followed by the data to be sent
+	for(uint16_t i = 0; i < size-1; i++)
+	{
+		// Append to buffer after index 0
+		tx_buff[i+1] = buffer[i];
+	}
+	*/
+	uint8_t* tx_buffer = I2C_CreateBuffer(reg_addr, buffer, size);
+
+	if(HAL_I2C_Master_Transmit(&hi2c1, (uint16_t)(address<<1), tx_buffer, size, I2C_MAX_TIMEOUT) != HAL_OK)
 	{
 		Error_Handler();
 	}
+
+	// free the temp buffer
+	free(tx_buffer);
+	tx_buffer = NULL;
 }
 
+/**
+ * @brief HAL I2C1 Receive wrapper
+ * @param[in] address - Target address
+ * @param[in] *data   - data to transmit (e.g. data[0] = 0x08)
+ * @param[in] size    - size of the data to transmit (e.g. 1)
+ */
 void I2C_MasterReceive(uint8_t address, uint8_t* buffer, uint8_t size)
 {
 	//HAL_StatusTypeDef HAL_I2C_Master_Receive_DMA(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size)
@@ -243,10 +269,89 @@ void I2C_MasterReceive(uint8_t address, uint8_t* buffer, uint8_t size)
 	*/
 
 	//HAL_StatusTypeDef HAL_I2C_Master_Receive(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout);
+
+	// Read from I2C - this gets stored into the rx_buffer
 	if(HAL_I2C_Master_Receive(&hi2c1, (uint16_t)(address<<1), buffer, size, I2C_MAX_TIMEOUT) != HAL_OK)
 	{
 		Error_Handler();
 	}
+}
+
+/**
+ * @brief Dynamically create a buffer to combine both the address and the original buffer
+ * @param[in] reg_addr - target register address
+ * @param[in] *buffer - the buffer to be sent
+ * @param[in] size - Original amount of data in the buffer
+ */
+uint8_t *I2C_CreateBuffer(uint8_t reg_addr, uint8_t* buffer, uint32_t size)
+{
+	uint8_t* out_buffer = (uint8_t*)malloc((size+1)*sizeof(uint8_t));
+
+	// register address should be sent first
+	out_buffer[0] = reg_addr;
+
+	// followed by the data to be sent
+	for(uint16_t i = 0; i < size-1; i++)
+	{
+		// Append to buffer after index 0
+		out_buffer[i+1] = buffer[i];
+	}
+
+	return out_buffer;
+}
+
+/**
+ * @brief Perform I2C Read
+ * @param[in] address - Target device address
+ * @param[in] reg_addr - Target register to read
+ * @param[out] *buffer - buffer array to store results
+ * @param[in] size - amount of data to be received
+ */
+bool I2C_Read(uint8_t address, uint8_t reg_addr, uint8_t* buffer, uint16_t size)
+{
+	bool result = false;
+
+	//HAL_StatusTypeDef HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+
+	if(HAL_I2C_Mem_Read(&hi2c1, (uint16_t)(address<<1), (uint16_t)reg_addr, I2C_MEMADD_SIZE_8BIT, buffer, size, I2C_MAX_TIMEOUT) != HAL_OK)
+	{
+		// Not OK - an error occurre
+		printf("> I2C Mem Read - ERROR");
+	}
+	else
+	{
+		// HAL_OK - success
+		result = true;
+	}
+
+	return result;
+}
+
+/**
+ * @brief Perform I2C Read
+ * @param[in] address - Target device address
+ * @param[in] reg_addr - Target register to read
+ * @param[out] *buffer - buffer array to store results
+ * @param[in] size - amount of data to be sent
+ */
+bool I2C_Write(uint8_t address, uint8_t reg_addr, uint8_t* buffer, uint16_t size)
+{
+	bool result = false;
+	//HAL_StatusTypeDef HAL_I2C_Mem_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+
+	if(HAL_I2C_Mem_Write(&hi2c1, (uint16_t)(address<<1), reg_addr, I2C_MEMADD_SIZE_8BIT, buffer, size, I2C_MAX_TIMEOUT) != HAL_OK)
+	{
+		// Not OK - an error occurred
+
+		printf("> I2C Mem Write - ERROR");
+	}
+	else
+	{
+		// HAL_OK - success
+		result = true;
+	}
+
+	return result;
 }
 
 /* USER CODE END 1 */

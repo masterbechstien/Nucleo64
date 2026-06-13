@@ -33,92 +33,88 @@
  *
  */
 
-
+#include "bme68x.h"
 #include "bme680.h"
 #include "usart.h"
 #include <stdbool.h>
 #include <stdlib.h>
 
-// List of gas ranges and corresponding constants used for the resistance calculation
-// Constants to be integrated into the driver
-static float const_array1[16] = {1, 1, 1, 1, 1, 0.99, 1, 0.992, 1, 1, 0.998, 0.995, 1, 0.99, 1, 1};
-static float const_array2[16] = {8000000,4000000,2000000,1000000,499500.4995,248262.1648,125000,63004.03226,31281.28128,15625,7812.5,3906.25,1953.125,976.5625,488.28125,244.140625};
-static uint32_t const_array1_int[16] = {2147483647,2147483647,2147483647,2147483647,2147483647,2126008810,2147483647,2130303777,2147483647,2147483647,2143188679,2136746228,2147483647,2126008810,2147483647,2147483647};
-static uint32_t const_array2_int[16] = {4096000000,2048000000,1024000000,512000000,255744255,127110228,64000000,32258064,16016016,8000000,4000000,2000000,1000000,500000,250000,125000};
+struct bme68x_dev bme;
+struct bme68x_conf conf;
+struct bme68x_heatr_conf heatr_conf;
+struct bme68x_data data;
+
+static uint8_t dev_addr;
 
 /**
  * @brief Initialize BME680
  */
 void bme680_init(void)
 {
-	// Check I2C if the device is available
+	// Interface updated for I2C
+	int8_t rslt = bme68x_interface_init(&bme, BME68X_I2C_INTF);
+	bme68x_check_rslt("bme68x_interface_init", rslt);
+	printf("BME680: I2C Initialized\r\n");
 
-	if(I2C_IsDeviceReady(BME680_ADDRESS))
-	{
-		// BME680 is available
+	// initialize BME680 driver
+	rslt = bme68x_init(&bme);
+	bme68x_check_rslt("bme68x_init", rslt);
+	printf("BME680: Chip ID %u\r\n", bme.chip_id);
 
-		printf("BME680 is ready\r\n");
+	/* Check if rslt == BME68X_OK, report or handle if otherwise */
+	conf.filter = BME68X_FILTER_OFF;
+	conf.odr = BME68X_ODR_NONE;
+	conf.os_hum  = BME68X_OS_2X;
+	conf.os_pres = BME68X_OS_1X;
+	conf.os_temp = BME68X_OS_2X;
+	rslt = bme68x_set_conf(&conf, &bme);
+	bme68x_check_rslt("bme68x_set_conf", rslt);
+	printf("BME680: Configuration set\r\n");
 
-		// configure the sensors
-		bme680_config_sensors();
-	}
-	else
-	{
-		printf("BME680 is not ready");
-	}
+	/* Check if rslt == BME68X_OK, report or handle if otherwise */
+	heatr_conf.enable = BME68X_ENABLE;
+	heatr_conf.heatr_temp = 300;
+	heatr_conf.heatr_dur = 100; // duration in milliseconds
+	rslt = bme68x_set_heatr_conf(BME68X_FORCED_MODE, &heatr_conf, &bme);
+	bme68x_check_rslt("bme68x_set_heatr_conf", rslt);
+	printf("BME680: Heater configured\r\n");
 
 }
 
-/**
- * @brief Wrapper function for sending and receiving I2C communication
- */
-/**
- * @brief Wrapper function for handling transmit and receive I2C commands
- * @param[in] *tx_buffer - the buffer array to be transmitted
- * @param[in] size - how many bytes to transmit
- * @param[in] perform_receive - True: execute master receive, False: Do not execute master receive
- * Note: The tx_buffer must contain the register address
- */
-void bme680_i2c_command(uint8_t *tx_buffer, uint8_t size, bool perform_receive)
+void bme680_get_measurement(void)
 {
-	// send I2C read request
-	I2C_MasterTransmit(BME680_ADDRESS, tx_buffer, 1);
+	uint32_t del_period;
+	uint8_t n_fields;
+	uint8_t rslt = bme68x_set_op_mode(BME68X_FORCED_MODE, &bme);
+	bme68x_check_rslt("bme68x_set_op_mode", rslt);
 
+	/* Calculate delay period in microseconds */
+	// Header duration is in milliseconds - convert to us with *1000
+	del_period = bme68x_get_meas_dur(BME68X_FORCED_MODE, &conf, &bme) + (heatr_conf.heatr_dur * 1000);
+	bme.delay_us(del_period, bme.intf_ptr);
 
-	// If flag is true then a response from BME680 it is expected so perform read
-	if(!perform_receive)
-	{
-		// clear tx_buffer
-		for(uint8_t i = 0; i < size; i++)
-		{
-			tx_buffer[i] = 0;
-		}
+	/* Check if rslt == BME68X_OK, report or handle if otherwise */
+	rslt = bme68x_get_data(BME68X_FORCED_MODE, &data, &n_fields, &bme);
+	bme68x_check_rslt("bme68x_get_data", rslt);
 
-		// perform read - store results in the tx_buffer
-		I2C_MasterReceive(BME680_ADDRESS, tx_buffer, 2);
-	}
-}
-
-/**
- * @brief Configure the BME680 temperature, RH, and pressure for 2x oversampling and put into forced mode
- * Note: BME680 Datasheet - Page 15
- */
-void bme680_config_sensors(void)
-{
-	// On power-on the BME680 is in low power mode, so it will need to be configured to 'forced mode' to start taking measurements
-
-	// 1. Create the buffers for TX and RX
-	// BME680 Datasheet - page 15 - "it is highly recommended to set first osrs_h<2:0> followed by osrs_t<2:0> and osrs_p<2:0> in one write command"
-
-	uint8_t *tx_buffer = (uint8_t*)malloc(* sizeof(uint8_t));
-	uint8_t *rx_buffer= (uint8_t*)malloc(1*sizeof(uint8_t));
-
-	// 2. set bits for oversampling 2x for temp, rh, and pressure
-
-	// 3. set temp and pressure to forced mode
-
-	// 4. Transmit
-
+    if (n_fields)
+    {
+#ifdef BME68X_USE_FPU
+        printf("Temp: %.2f, RH: %.2f, Pressure (Pa): %.2f, GasR: %.2f, Status: 0x%u\r\n",
+               data.temperature,
+               data.humidity,
+			   (data.pressure - 101325), // remove atmospheric pressure in Pascals
+               data.gas_resistance,
+               data.status);
+#else
+        printf("%d, %lu, %lu, %lu, 0x%x\r\n",
+               (data.temperature / 100),
+               (long unsigned int)data.pressure,
+               (long unsigned int)(data.humidity / 1000),
+               (long unsigned int)data.gas_resistance,
+               data.status);
+#endif
+    }
 }
 
 /**
@@ -127,41 +123,155 @@ void bme680_config_sensors(void)
  */
 uint8_t bme680_get_id(void)
 {
-	uint8_t *tx_buffer = (uint8_t*)malloc(1 * sizeof(uint8_t));
-	uint8_t *rx_buffer = (uint8_t*)malloc(1 * sizeof(uint8_t));
+	uint8_t rx_buffer[1];
 
-	tx_buffer[0] = BME680_REG_ID;
-	rx_buffer[0] = DEFAULT_TXRX_VALUE;
+	I2C_Read(BME680_ADDRESS, BME68X_CHIP_ID, rx_buffer, 1);
 
-	// send I2C read request
-	I2C_MasterTransmit(BME680_ADDRESS, tx_buffer, 1);
-
-	// perform read - store results in the tx_buffer
-	I2C_MasterReceive(BME680_ADDRESS, rx_buffer, 1);
-
-	return *rx_buffer;
+	return rx_buffer[0];
 }
 
-/**
- * @brief Set the BME680 mode to sleep mode - low power mode - no measurements will be made
+/*!
+ * @brief I2C read function wrapper
+ * @param[in] reg_addr - target device address
+ * @param[in] *reg_data - buffer for the data to be received
+ * @param[in] len - The size of the data to be received
+ * @param[in] *intf_ptr - pointer to driver data - contains BME680 device address
  */
-void bme680_sleep_mode(void)
+BME68X_INTF_RET_TYPE bme68x_i2c_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
 {
-	// mode<1:0> == 00
-	//uint8_t *buffer = (uint8_t *) malloc(2 * sizeof(uint8_t)); // allocate memory for 2 element
+	BME68X_INTF_RET_TYPE ret = BME68X_OK;
+	uint8_t device_addr = *(uint8_t*)intf_ptr;
+    (void)intf_ptr;
 
-	//buffer[0] = cmd; // 1. the register to write to
-	//buffer[1] = 0x00; // 2. The value to set the register to
+    //return coines_read_i2c(COINES_I2C_BUS_0, device_addr, reg_addr, reg_data, (uint16_t)len);
 
-	//bme680_i2c_command(buffer, I2C_READ, false);
+    // Perform I2C Read
+    if(I2C_Read(device_addr, reg_addr, reg_data, len))
+    {
+    	// success
+    	ret = BME68X_INTF_RET_SUCCESS;
+    }
+    else
+    {
+    	ret = BME68X_E_COM_FAIL;
+    }
+
+    return ret;
 }
 
-/**
- * @brief Set the BME680 mode to forced mode - Measurements will be made
+/*!
+ * I2C write function wrapper
  */
-void bme680_forced_mode(void)
+BME68X_INTF_RET_TYPE bme68x_i2c_write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr)
 {
-	// mode<1:0> == 01
+	BME68X_INTF_RET_TYPE ret = BME68X_OK;
+    uint8_t device_addr = *(uint8_t*)intf_ptr;
+
+    (void)intf_ptr;
+
+    //return coines_write_i2c(COINES_I2C_BUS_0, device_addr, reg_addr, (uint8_t *)reg_data, (uint16_t)len);
+
+    if(I2C_Write(device_addr, reg_addr, (uint8_t*)reg_data, len))
+    {
+    	// success
+    	ret = BME68X_INTF_RET_SUCCESS;
+    }
+    else
+    {
+    	ret = BME68X_E_COM_FAIL;
+    }
+
+    return ret;
 }
 
+/*!
+ * @brief Delay function map to COINES platform
+ * @param[in] period - time in microseconds
+ * @param[in] *intf_ptr - pointer to interface
+ */
+void bme68x_delay_us(uint32_t period, void *intf_ptr)
+{
+    (void)intf_ptr;
+
+    // Convert to ms
+    uint32_t ms = (uint32_t)(period / 1000);
+
+    //printf("BME680 Delay Period: %lu ms\r\n", ms);
+
+    vTaskDelay(pdMS_TO_TICKS(ms));
+}
+
+int8_t bme68x_interface_init(struct bme68x_dev *bme, uint8_t intf)
+{
+    int8_t rslt = BME68X_OK;
+
+    // null guard - check if initialized
+    if (bme != NULL)
+    {
+        /* Bus configuration : I2C */
+        if (intf == BME68X_I2C_INTF)
+        {
+            printf("I2C Interface\r\n");
+            dev_addr = BME68X_I2C_ADDR_LOW;
+            bme->read = bme68x_i2c_read;
+            bme->write = bme68x_i2c_write;
+            bme->intf = BME68X_I2C_INTF;
+        }
+        /* Bus configuration : SPI */
+        else if (intf == BME68X_SPI_INTF)
+        {
+        	// not using SPI - leave it just in case
+        	/*
+            printf("SPI Interface\n");
+            dev_addr = COINES_SHUTTLE_PIN_7;
+            bme->read = bme68x_spi_read;
+            bme->write = bme68x_spi_write;
+            bme->intf = BME68X_SPI_INTF;
+            (void)coines_config_spi_bus(COINES_SPI_BUS_0, COINES_SPI_SPEED_7_5_MHZ, COINES_SPI_MODE0);
+            */
+        }
+
+        bme->delay_us = bme68x_delay_us;
+        bme->intf_ptr = &dev_addr;
+        bme->amb_temp = 25; /* The ambient temperature in deg C is used for defining the heater temperature */
+    }
+    else
+    {
+        rslt = BME68X_E_NULL_PTR;
+    }
+
+    return rslt;
+}
+
+void bme68x_check_rslt(const char api_name[], int8_t rslt)
+{
+    switch (rslt)
+    {
+        case BME68X_OK:
+
+            /* Do nothing */
+            break;
+        case BME68X_E_NULL_PTR:
+            printf("API name [%s]  Error [%d] : Null pointer\r\n", api_name, rslt);
+            break;
+        case BME68X_E_COM_FAIL:
+            printf("API name [%s]  Error [%d] : Communication failure\r\n", api_name, rslt);
+            break;
+        case BME68X_E_INVALID_LENGTH:
+            printf("API name [%s]  Error [%d] : Incorrect length parameter\r\n", api_name, rslt);
+            break;
+        case BME68X_E_DEV_NOT_FOUND:
+            printf("API name [%s]  Error [%d] : Device not found\r\n", api_name, rslt);
+            break;
+        case BME68X_E_SELF_TEST:
+            printf("API name [%s]  Error [%d] : Self test error\r\n", api_name, rslt);
+            break;
+        case BME68X_W_NO_NEW_DATA:
+            printf("API name [%s]  Warning [%d] : No new data found\r\n", api_name, rslt);
+            break;
+        default:
+            printf("API name [%s]  Error [%d] : Unknown error code\r\n", api_name, rslt);
+            break;
+    }
+}
 
